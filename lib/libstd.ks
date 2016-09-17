@@ -56,7 +56,7 @@ function newELoop {
     return loop.
 }
 
-function dosafe {
+function safedoevent {
     parameter nametag, modulename, eventname.
     local parts is ship:partstagged(nametag).
     if parts:length = 0 {
@@ -64,10 +64,10 @@ function dosafe {
         return.
     }
     for part in parts {
-        local modules is part:modules.
+        local modnames is part:modules.
         local hasmodule is false.
-        for mdl in modules {
-            if mdl = modulename {
+        for mn in modnames {
+            if mn = modulename {
                 set hasmodule to true.
                 break.
             }
@@ -83,4 +83,48 @@ function dosafe {
             print "No module named '" + modulename + "' in part " + nametag.
         }
     }
+}
+
+function safeactivate {
+    parameter nametag.
+    local parts is ship:partstagged(nametag).
+    if parts:length = 0 {
+        print "No parts found by tag '" + nametag + "'".
+        return.
+    }
+    for part in parts {
+        part:activate.
+    }
+}
+
+function addnode {
+    //in km
+    parameter new_otherapsis, on_apo is true.
+    set new_otherapsis to new_otherapsis * 1000.
+    local node_time is 0.
+    local otherapsis is 0.
+    local burnapsis is 0.
+
+    if on_apo {
+      set node_time to time:seconds + eta:apoapsis.
+      set otherapsis to periapsis.
+      set burnapsis to apoapsis.
+    } else {
+      set node_time to time:seconds + eta:periapsis.
+      set otherapsis to apoapsis.
+      set burnapsis to periapsis.
+    }
+
+    print "Setting up maneuver node. ETA=" + (node_time - time:seconds).
+    local burn is node(node_time, 0,0,0).
+    add burn.
+
+    local v_old is sqrt(body:mu * (2/(burnapsis+body:radius) -
+                                 1/ship:obt:semimajoraxis)).
+    local v_new is sqrt(body:mu * (2/(burnapsis+body:radius) -
+                     1/(body:radius+(new_otherapsis+burnapsis)/2))).
+    local dv is v_new - v_old.
+    set burn:prograde to dv.
+
+    //run ship_burn_node.
 }
