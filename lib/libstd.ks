@@ -1,30 +1,36 @@
 @lazyglobal off.
 
-function initELoop {
+function newELoop {
   local loop is lexicon("_events", lexicon(), "_eid", 0).
 
-  loop:add("_iteration", {
+  function _iteration {
     parameter self.
-    for e in self["_events"]:values {
+    for eid in self["_events"]:keys {
+      local e is self["_events"][eid].
       if e[0]() {
-        e[1]().
+        if not e[1]() {
+          self["rmEvent"](eid).
+        }
       }
     }.
-  }:bind(loop)).
+  }
+  loop:add("_iteration", _iteration@:bind(loop)).
 
-  loop:add("addEvent", {
+  function addEvent {
     parameter self, cond, func.
-    self["_eid"] = self["_eid"] + 1.
-    self["_events"]:add(self["_eid"], list(cond, func)).
+    set self["_eid"] to self["_eid"] + 1.
+    self["_events"]:add(self["_eid"], list(cond, func, persistent)).
     return self["_eid"].
-  }:bind(loop)).
+  }
+  loop:add("addEvent", addEvent@:bind(loop)).
 
-  loop:add("rmEvent", {
+  function rmEvent {
     parameter self, id.
     self["_events"]:remove(id).
-  }:bind(loop)).
+  }
+  loop:add("rmEvent", rmEvent@:bind(loop)).
 
-  loop:add("waitTime", {
+  function waitTime {
     parameter self, dt.
     local t0 is time:seconds.
     until false {
@@ -33,9 +39,10 @@ function initELoop {
         break.
       }
     }
-  }:bind(loop)).
+  }
+  loop:add("waitTime", waitTime@:bind(loop)).
 
-  loop:add("waitCond", {
+  function waitCond {
     parameter self, condFunc.
     until false {
       self["_iteration"]().
@@ -43,7 +50,8 @@ function initELoop {
         break.
       }
     }
-  }:bind(loop)).
+  }
+  loop:add("waitCond", waitCond@:bind(loop)).
 
   return loop.
 }
