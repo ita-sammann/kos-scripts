@@ -180,7 +180,7 @@ function doNodeDV {
 
     print "Waiting for node".
     local rt is nextnode:eta - tminus.
-    until rt <= 0 {
+    el["doUntil"]({ return rt <= 0. }, {
         set rt to nextnode:eta - tminus.
         local maxwarp is 8.
         if rt < 100000 { set maxwarp to 7. }
@@ -195,7 +195,7 @@ function doNodeDV {
             set warp to maxwarp.
             print "Remaining time: " + rt + ", warp factor: " + warp.
         }
-    }
+    }).
     set warp to 0.
 
     local tvar is 0.
@@ -203,7 +203,8 @@ function doNodeDV {
     print "Fast burn".
     local olddv is nextnode:deltav:mag.
     local da is maxthrustlimited * throttle / ship:mass.
-    until (nextnode:deltav:mag < 1 and stage:liquidfuel > 0) or (nextnode:deltav:mag > (olddv + 1)) {
+
+    el["doUntil"]({ return (nextnode:deltav:mag < 1 and stage:liquidfuel > 0) or (nextnode:deltav:mag > (olddv + 1)) }, {
         set da to maxthrustlimited * throttle / ship:mass.
         local tset is nextnode:deltav:mag * ship:mass / maxthrustlimited.
         if nextnode:deltav:mag < 2*da and tset > 0.1 {
@@ -213,19 +214,21 @@ function doNodeDV {
             set tvar to 1.
         }
         set olddv to nextnode:deltav:mag.
-    }
+    }).
+
     // poor man's debugging
     if (nextnode:deltav:mag > olddv) {
-        print "Warning:  Delta-V target exceeded during fast-burn!".
+        print "Warning: Delta-V target exceeded during fast-burn!".
     }
+
     // compensate 1m/s due to "until" stopping short; nd:deltav:mag never gets to 0!
     print "Slow burn".
     if stage:liquidfuel > 0 and da <> 0{
-        wait 1/da.
+        el["waitTime"](1/da).
     }
     lock throttle to 0.
 
-
+    set ship:control:pilotmainthrottle to 0.
     unlock throttle.
     unlock steering.
     print "Stabilizing".

@@ -43,7 +43,7 @@ function landingSequence {
     safeactivate("softLandThrusters").
 }
 
-el["addEvent"]({
+local abortEvent is el["addEvent"]({
     return abort.
 }, {
     unlock throttle.
@@ -74,6 +74,7 @@ function launchSequence {
 		print "Dropping fairings".
 		safeactivate("LESTower").
 	    dropFairings().
+        el["rmEvent"](abortEvent).
 	}).
     el["waitCond"]({ return ship:airspeed > 80. }).
     lock steering to heading(hdg, 82).
