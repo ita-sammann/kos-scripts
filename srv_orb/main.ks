@@ -1,6 +1,7 @@
 @lazyglobal off.
 //clearscreen.
 
+set ship:control:pilotmainthrottle to 0.
 local el is newELoop().
 
 function fireLES {
@@ -65,17 +66,17 @@ function launchSequence {
     el["addEvent"]({ return ship:maxthrust <= 0. }, {
         print "Staging".
         stage.
-        el["waitTime"](3).
+        el["waitTime"](2.5). // wait until celar of 1st stage.
         stage.
         return false.
     }).
-	el["addEvent"]({ return ship:altitude > 45000. }, {
+	el["addEvent"]({ return ship:altitude > 50000. }, {
 		print "Dropping fairings".
 		safeactivate("LESTower").
 	    dropFairings().
 	}).
     el["waitCond"]({ return ship:airspeed > 80. }).
-    lock steering to heading(hdg, 80).
+    lock steering to heading(hdg, 82).
     el["waitCond"]({ return ship:airspeed > 160. }).
     lock steering to ship:srfprograde.
     el["waitCond"]({ return ship:altitude > 37000. }).
@@ -84,11 +85,11 @@ function launchSequence {
 	print "Reached targeted apoapsis".
 	lock throttle to 0.
 	addnode(orbAlt).
-
-
-	el["waitCond"]({ return false. }).
+    el["waitTime"](1).
+    doNodeDV(el, ship:partstagged("2ndStageEngines")).
 }
 
 // Launch on AG1
 el["waitCond"]({ return ag1. }).
 launchSequence(90, 100).
+el["waitCond"]({ return false. }).

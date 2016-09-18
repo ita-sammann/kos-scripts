@@ -7,8 +7,8 @@ function newELoop {
         parameter self.
         for eid in self["_events"]:keys {
             local e is self["_events"][eid].
-            if e[0]() {
-                if not e[1]() {
+            if e["cond"]() {
+                if not e["func"]() {
                     self["rmEvent"](eid).
                 }
             }
@@ -19,7 +19,7 @@ function newELoop {
     function addEvent {
         parameter self, cond, func.
         set self["_eid"] to self["_eid"] + 1.
-        self["_events"]:add(self["_eid"], list(cond, func)).
+        self["_events"]:add(self["_eid"], lexicon("cond", cond, "func", func)).
         return self["_eid"].
     }
     loop:add("addEvent", addEvent@:bind(loop)).
@@ -52,6 +52,22 @@ function newELoop {
         }
     }
     loop:add("waitCond", waitCond@:bind(loop)).
+
+    function doUntil {
+        parameter self, cond, func.
+        local condfunc is { return not cond(). }.
+        self["addEvent"]({ return true. }, {
+            func().
+            if cond() {
+                return false.
+            } else {
+                return true.
+            }
+        }).
+        self["waitCond"](cond).
+    }
+    loop:add("doUntil", doUntil@:bind(loop)).
+
 
     return loop.
 }
@@ -125,6 +141,99 @@ function addnode {
                      1/(body:radius+(new_otherapsis+burnapsis)/2))).
     local dv is v_new - v_old.
     set burn:prograde to dv.
+}
 
-    //run ship_burn_node.
+function doNodeDV {
+    parameter el, nodeEngines.
+    if stage:liquidfuel = 0 {
+    	print "LiquidFuel empty".
+        return.
+    }
+    if nodeEngines:length = 0 {
+    	print "No engines".
+        return.
+    }
+    print "Executing maneuver node".
+
+    local ispsum is 0.
+    local maxthrustlimited is 0.
+    for engine in nodeEngines {
+        if engine:isp > 0 {
+            set ispsum to ispsum + (engine:maxthrust / engine:isp).
+            set maxthrustlimited to maxthrustlimited + (engine:maxthrust * (engine:thrustlimit / 100) ).
+        }
+    }
+    local ispavg is ( maxthrustlimited / ispsum ).
+    local g0 is 9.82.
+    local ve is ispavg * g0.
+    local dv is nextnode:deltav:mag.
+    local m0 is ship:mass.
+    local Th is maxthrustlimited.
+    local e  is constant:e.
+    local burntime is (m0 * ve / Th) * (1 - e^(-dv/ve)).
+    local tminus is burntime / 2.
+
+    print "Total burn time for maneuver:  " + round(burntime, 2) + " s".
+    print "Steering".
+    sas off.
+    lock steering to nextnode.
+
+    print "Waiting for node".
+    local rt is nextnode:eta - tminus.
+    until rt <= 0 {
+        set rt to nextnode:eta - tminus.
+        local maxwarp is 8.
+        if rt < 100000 { set maxwarp to 7. }
+        if rt < 10000  { set maxwarp to 6. }
+        if rt < 1000   { set maxwarp to 5. }
+        if rt < 100    { set maxwarp to 4. }
+        if rt < 60     { set maxwarp to 3. }
+        if rt < 50     { set maxwarp to 2. }
+        if rt < 25     { set maxwarp to 1. }
+        if rt < 8      { set maxwarp to 0. }
+        if warp > maxwarp {
+            set warp to maxwarp.
+            print "Remaining time: " + rt + ", warp factor: " + warp.
+        }
+    }
+    set warp to 0.
+
+    local tvar is 0.
+    lock throttle to tvar.
+    print "Fast burn".
+    local olddv is nextnode:deltav:mag.
+    local da is maxthrustlimited * throttle / ship:mass.
+    until (nextnode:deltav:mag < 1 and stage:liquidfuel > 0) or (nextnode:deltav:mag > (olddv + 1)) {
+        set da to maxthrustlimited * throttle / ship:mass.
+        local tset is nextnode:deltav:mag * ship:mass / maxthrustlimited.
+        if nextnode:deltav:mag < 2*da and tset > 0.1 {
+            set tvar to tset.
+        }
+        if nextnode:deltav:mag > 2*da {
+            set tvar to 1.
+        }
+        set olddv to nextnode:deltav:mag.
+    }
+    // poor man's debugging
+    if (nextnode:deltav:mag > olddv) {
+        print "Warning:  Delta-V target exceeded during fast-burn!".
+    }
+    // compensate 1m/s due to "until" stopping short; nd:deltav:mag never gets to 0!
+    print "Slow burn".
+    if stage:liquidfuel > 0 and da <> 0{
+        wait 1/da.
+    }
+    lock throttle to 0.
+
+
+    unlock throttle.
+    unlock steering.
+    print "Stabilizing".
+    sas on.
+
+    print " ".
+    print "Orbit:".
+    print "    Ap:  " + round(ship:obt:apoapsis).
+    print "    Pe:  " + round(ship:obt:periapsis).
+    print "- - - - - - - - - - - - - - - - - - - -".
 }
